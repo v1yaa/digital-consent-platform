@@ -1,0 +1,51 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local SQLite databases (do not include development or test databases)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Secrets and environment files
+.env
+.env.local
+.env.*.local
+*.secret
+
+# Git metadata
+.git/
+.gitignore
+.gitattributes
+
+# Test artifacts and coverage
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.egg-info/
+dist/
+build/
+
+# IDE and OS files
+.idea/
+.vscode/
+*.DS_Store
+Thumbs.db
+
+# Documentation source (not needed in image)
+docs/
+*.md
+
+# GitHub Actions
+.github/
