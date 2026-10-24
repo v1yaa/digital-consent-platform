@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Compliance Reports{% endblock %}
+{% block description %}Compliance report with consent statistics, purpose breakdown, and expiring records{% endblock %}
+{% block page_title %}<i class="bi bi-bar-chart-line-fill me-2"></i>Compliance Reports{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('main.reports_export') }}{% if start_date or end_date %}?start_date={{ start_date }}&end_date={{ end_date }}{% endif %}"
+     class="btn btn-success btn-sm" id="btn-export-csv">
+    <i class="bi bi-download me-1"></i>Export CSV
+  </a>
+{% endblock %}
+
+{% block content %}
+<!-- Date range filter -->
+<div class="card-panel mb-4" id="report-filter-panel">
+  <form method="get" action="{{ url_for('main.reports') }}" class="filter-form" id="report-filter-form">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label for="start_date" class="filter-label">From Date</label>
+        <input type="datetime-local" id="start_date" name="start_date" class="filter-input"
+               value="{{ start_date }}" />
+      </div>
+      <div class="filter-group">
+        <label for="end_date" class="filter-label">To Date</label>
+        <input type="datetime-local" id="end_date" name="end_date" class="filter-input"
+               value="{{ end_date }}" />
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary btn-sm" id="btn-run-report">
+          <i class="bi bi-play-fill me-1"></i>Run Report
+        </button>
+        <a href="{{ url_for('main.reports') }}" class="btn btn-outline-secondary btn-sm" id="btn-clear-report">Clear</a>
+      </div>
+    </div>
+    {% if start_date or end_date %}
+    <div class="filter-active-badge">
+      <i class="bi bi-funnel-fill me-1"></i>
+      Filtered:
+      {% if start_date %}from <strong>{{ start_date }}</strong>{% endif %}
+      {% if end_date %} to <strong>{{ end_date }}</strong>{% endif %}
+    </div>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Summary stats -->
+<div class="stats-grid stats-grid--small mb-4" id="report-stats-grid">
+  <div class="stat-card stat-total">
+    <div class="stat-icon"><i class="bi bi-files"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ report.stats.total }}</div>
+      <div class="stat-label">Total Records</div>
+    </div>
+  </div>
+  <div class="stat-card stat-active">
+    <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ report.stats.active }}</div>
+      <div class="stat-label">Active</div>
+    </div>
+  </div>
+  <div class="stat-card stat-expired">
+    <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ report.stats.expired }}</div>
+      <div class="stat-label">Expired</div>
+    </div>
+  </div>
+  <div class="stat-card stat-revoked">
+    <div class="stat-icon"><i class="bi bi-shield-x"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ report.stats.revoked }}</div>
+      <div class="stat-label">Revoked</div>
+    </div>
+  </div>
+  <div class="stat-card stat-denied">
+    <div class="stat-icon"><i class="bi bi-ban"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ report.stats.denied }}</div>
+      <div class="stat-label">Denied</div>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <!-- By-purpose breakdown -->
+  <div class="card-panel" id="purpose-breakdown-panel">
+    <div class="panel-header">
+      <h2 class="panel-title"><i class="bi bi-list-task me-2"></i>Consent by Purpose</h2>
+    </div>
+    {% if report.by_purpose %}
+      <table class="data-table" id="purpose-table">
+        <thead>
+          <tr><th>Purpose</th><th class="text-end">Records</th><th class="text-end">Share</th></tr>
+        </thead>
+        <tbody>
+          {% for purpose, count in report.by_purpose.items() | sort(attribute='1', reverse=True) %}
+          <tr>
+            <td>{{ purpose_labels.get(purpose, purpose) }}</td>
+            <td class="text-end mono">{{ count }}</td>
+            <td class="text-end small text-muted">
+              {% if report.stats.total > 0 %}
+                {{ "%.1f"|format(count / report.stats.total * 100) }}%
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state"><i class="bi bi-bar-chart"></i><p>No data in selected range.</p></div>
+    {% endif %}
+  </div>
+
+  <!-- Expiring soon -->
+  <div class="card-panel" id="expiring-soon-panel">
+    <div class="panel-header">
+      <h2 class="panel-title"><i class="bi bi-alarm-fill me-2"></i>Expiring Within 30 Days</h2>
+    </div>
+    {% if report.expiring_soon %}
+      <div class="table-responsive">
+        <table class="data-table" id="expiring-table">
+          <thead>
+            <tr><th>#</th><th>User</th><th>Purpose</th><th>Expires</th></tr>
+          </thead>
+          <tbody>
+            {% for r in report.expiring_soon %}
+            <tr>
+              <td class="mono text-muted">{{ r.id }}</td>
+              <td>{{ r.user_identifier }}</td>
+              <td>{{ purpose_labels.get(r.purpose, r.purpose) }}</td>
+              <td class="mono small text-warning">{{ r.expiration_date.strftime('%Y-%m-%d') if r.expiration_date else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <i class="bi bi-alarm"></i>
+        <p>No consents expiring in the next 30 days.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Full records table -->
+<div class="card-panel mt-4" id="report-records-panel">
+  <div class="panel-header">
+    <h2 class="panel-title"><i class="bi bi-table me-2"></i>Consent History — {{ report.records|length }} Records</h2>
+    <a href="{{ url_for('main.reports_export') }}{% if start_date or end_date %}?start_date={{ start_date }}&end_date={{ end_date }}{% endif %}"
+       class="panel-link" id="inline-export-link">
+      <i class="bi bi-download me-1"></i>Export CSV
+    </a>
+  </div>
+  {% if report.records %}
+    <div class="table-responsive">
+      <table class="data-table" id="report-records-table">
+        <thead>
+          <tr>
+            <th>#</th><th>User</th><th>Purpose</th><th>Scope</th>
+            <th>Status</th><th>Consent Date</th><th>Expires</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in report.records %}
+          <tr>
+            <td class="mono text-muted">{{ r.id }}</td>
+            <td>{{ r.user_identifier }}</td>
+            <td>{{ purpose_labels.get(r.purpose, r.purpose) }}</td>
+            <td class="small text-muted">{{ r.scope.replace('_', ' ').title() }}</td>
+            <td>
+              <span class="status-badge status-{{ r.effective_status }}">{{ r.effective_status.title() }}</span>
+            </td>
+            <td class="mono small">{{ r.consent_date.strftime('%Y-%m-%d') if r.consent_date else '—' }}</td>
+            <td class="mono small {% if r.is_expired %}text-danger{% endif %}">
+              {{ r.expiration_date.strftime('%Y-%m-%d') if r.expiration_date else '—' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state empty-state--large">
+      <i class="bi bi-file-earmark-x"></i>
+      <h3>No records in this period</h3>
+      <p>Adjust the date range or <a href="{{ url_for('main.consent_new') }}">add new consent records</a>.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

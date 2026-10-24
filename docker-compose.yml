@@ -1,0 +1,41 @@
+# docker-compose.yml – Digital Consent and Data Permission Management Platform
+# Requires Docker Compose v2 (docker compose) or Compose V1 (docker-compose)
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: consent-platform:latest
+    container_name: consent_platform
+    restart: unless-stopped
+
+    # Port mapping: host:container
+    # Change HOST_PORT in .env to move the host-side port.
+    ports:
+      - "${HOST_PORT:-8080}:8000"
+
+    environment:
+      # SQLite database inside the named volume
+      DATABASE_URL: "sqlite:////data/consent.db"
+      # Override SECRET_KEY via .env – never commit real secrets to Git
+      SECRET_KEY: "${SECRET_KEY:-change-me-in-production}"
+      FLASK_DEBUG: "false"
+      PORT: "8000"
+
+    volumes:
+      # Named volume for database persistence across container restarts
+      - consent_data:/data
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+    # No external database dependency – SQLite is self-contained
+
+volumes:
+  consent_data:
+    driver: local

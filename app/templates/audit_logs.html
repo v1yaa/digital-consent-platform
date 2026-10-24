@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Trail{% endblock %}
+{% block description %}Complete audit trail of all consent-related events{% endblock %}
+{% block page_title %}<i class="bi bi-journal-text me-2"></i>Audit Trail{% endblock %}
+
+{% block content %}
+<div class="card-panel" id="audit-panel">
+  <div class="panel-header">
+    <h2 class="panel-title"><i class="bi bi-list-check me-2"></i>Event Log — {{ logs|length }} Entries</h2>
+  </div>
+
+  {% if logs %}
+    <div class="table-responsive">
+      <table class="data-table" id="audit-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Timestamp (UTC)</th>
+            <th>Event Type</th>
+            <th>Consent ID</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr id="audit-row-{{ log.id }}">
+            <td class="mono text-muted">{{ log.id }}</td>
+            <td class="mono small text-nowrap">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp else '—' }}</td>
+            <td>
+              <span class="badge badge-event badge-{{ log.event_type }}">
+                <i class="bi {% if log.event_type == 'consent_created' %}bi-plus-circle
+                           {% elif log.event_type == 'consent_revoked' %}bi-shield-x
+                           {% elif log.event_type == 'consent_updated' %}bi-pencil
+                           {% elif log.event_type == 'consent_expired' %}bi-clock-history
+                           {% elif log.event_type == 'report_generated' %}bi-bar-chart-line
+                           {% else %}bi-info-circle{% endif %} me-1"></i>
+                {{ log.event_type.replace('_', ' ').title() }}
+              </span>
+            </td>
+            <td>
+              {% if log.consent_id %}
+                <a href="{{ url_for('main.consent_edit', record_id=log.consent_id) }}" id="audit-consent-link-{{ log.id }}">#{{ log.consent_id }}</a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">{{ log.description }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state empty-state--large">
+      <i class="bi bi-journal"></i>
+      <h3>No audit events yet</h3>
+      <p>Events will appear automatically as consent records are created, updated, or revoked.</p>
+    </div>
+  {% endif %}
+</div>
+
+<div class="audit-notice" id="audit-notice">
+  <i class="bi bi-info-circle me-2"></i>
+  <strong>Note:</strong> This audit trail records system events for academic demonstration purposes. It is not tamper-proof and does not constitute a legally binding compliance log.
+</div>
+{% endblock %}

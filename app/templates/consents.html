@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Consent Records{% endblock %}
+{% block description %}Browse, filter, and manage all consent records{% endblock %}
+{% block page_title %}<i class="bi bi-file-earmark-check-fill me-2"></i>Consent Records{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('main.consent_new') }}" class="btn btn-primary btn-sm" id="btn-add-consent">
+    <i class="bi bi-plus-lg me-1"></i>Add Consent
+  </a>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card-panel mb-4" id="filter-panel">
+  <form method="get" action="{{ url_for('main.consents') }}" class="filter-form" id="filter-form">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label for="filter-status" class="filter-label">Status</label>
+        <select name="status" id="filter-status" class="filter-select">
+          <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+          <option value="granted" {% if status_filter == 'granted' %}selected{% endif %}>Active (Granted)</option>
+          <option value="denied" {% if status_filter == 'denied' %}selected{% endif %}>Denied</option>
+          <option value="revoked" {% if status_filter == 'revoked' %}selected{% endif %}>Revoked</option>
+          <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Expired</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="filter-purpose" class="filter-label">Purpose</label>
+        <select name="purpose" id="filter-purpose" class="filter-select">
+          <option value="all" {% if purpose_filter == 'all' %}selected{% endif %}>All Purposes</option>
+          {% for key, label in purpose_labels.items() %}
+          <option value="{{ key }}" {% if purpose_filter == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group filter-group--grow">
+        <label for="filter-user" class="filter-label">User</label>
+        <input type="text" name="user" id="filter-user" class="filter-input"
+               placeholder="Search by user identifier…" value="{{ user_filter }}" />
+      </div>
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary btn-sm" id="btn-apply-filter">
+          <i class="bi bi-funnel-fill me-1"></i>Filter
+        </button>
+        <a href="{{ url_for('main.consents') }}" class="btn btn-outline-secondary btn-sm" id="btn-clear-filter">Clear</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Records table -->
+{% if records %}
+  <div class="card-panel" id="consents-table-panel">
+    <div class="panel-header">
+      <h2 class="panel-title">
+        <i class="bi bi-table me-2"></i>
+        {{ records|length }} Record{{ 's' if records|length != 1 }}
+      </h2>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table" id="consents-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>User</th>
+            <th>Purpose</th>
+            <th>Scope</th>
+            <th>Status</th>
+            <th>Consent Date</th>
+            <th>Expires</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+          <tr id="consent-row-{{ r.id }}">
+            <td class="mono text-muted">{{ r.id }}</td>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">{{ r.user_identifier[0].upper() }}</div>
+                <span class="user-id">{{ r.user_identifier }}</span>
+              </div>
+            </td>
+            <td>{{ purpose_labels.get(r.purpose, r.purpose) }}</td>
+            <td class="small text-muted">{{ scope_labels.get(r.scope, r.scope) }}</td>
+            <td>
+              <span class="status-badge status-{{ r.effective_status }}" id="status-{{ r.id }}">
+                <i class="bi {% if r.effective_status == 'granted' %}bi-shield-check{% elif r.effective_status == 'revoked' %}bi-shield-x{% elif r.effective_status == 'expired' %}bi-clock-history{% else %}bi-ban{% endif %}"></i>
+                {{ r.effective_status.title() }}
+              </span>
+            </td>
+            <td class="mono small">{{ r.consent_date.strftime('%Y-%m-%d') if r.consent_date else '—' }}</td>
+            <td class="mono small {% if r.is_expired %}text-danger{% elif r.expiration_date %}text-warning{% endif %}">
+              {{ r.expiration_date.strftime('%Y-%m-%d') if r.expiration_date else '—' }}
+            </td>
+            <td class="text-end">
+              <div class="action-btns">
+                <a href="{{ url_for('main.consent_edit', record_id=r.id) }}"
+                   class="btn btn-icon btn-edit" title="Edit" id="btn-edit-{{ r.id }}">
+                  <i class="bi bi-pencil-fill"></i>
+                </a>
+                {% if r.effective_status not in ('revoked', 'expired') %}
+                <form method="post" action="{{ url_for('main.consent_revoke', record_id=r.id) }}"
+                      style="display:inline" id="revoke-form-{{ r.id }}"
+                      onsubmit="return confirm('Revoke consent #{{ r.id }} for {{ r.user_identifier }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-icon btn-revoke" title="Revoke"
+                          id="btn-revoke-{{ r.id }}">
+                    <i class="bi bi-shield-x"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% else %}
+  <div class="card-panel" id="consents-empty">
+    <div class="empty-state empty-state--large">
+      <i class="bi bi-file-earmark-x"></i>
+      <h3>No consent records found</h3>
+      <p>{% if status_filter != 'all' or purpose_filter != 'all' or user_filter %}
+        No records match your current filters. <a href="{{ url_for('main.consents') }}">Clear filters</a>.
+      {% else %}
+        Start by <a href="{{ url_for('main.consent_new') }}">recording a new consent</a>.
+      {% endif %}</p>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
