@@ -169,7 +169,7 @@
             <td class="mono text-muted">{{ r.id }}</td>
             <td>{{ r.user_identifier }}</td>
             <td>{{ purpose_labels.get(r.purpose, r.purpose) }}</td>
-            <td class="small text-muted">{{ r.scope.replace('_', ' ').title() }}</td>
+            <td class="small text-muted">{{ scope_labels.get(r.scope, r.scope.replace('_', ' ').title()) if scope_labels else r.scope.replace('_', ' ').title() }}</td>
             <td>
               <span class="status-badge status-{{ r.effective_status }}">{{ r.effective_status.title() }}</span>
             </td>

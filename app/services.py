@@ -42,8 +42,9 @@ def update_consent(
     consent_date: Optional[datetime],
     expiration_date: Optional[datetime],
     notes: Optional[str],
+    user_identifier: Optional[str] = None,
 ) -> ConsentRecord:
-    return update_consent_db(record_id, purpose, scope, status, consent_date, expiration_date, notes)
+    return update_consent_db(record_id, purpose, scope, status, consent_date, expiration_date, notes, user_identifier)
 
 
 def revoke_consent(record_id: int) -> ConsentRecord:

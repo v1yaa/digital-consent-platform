@@ -87,7 +87,14 @@ def inject_csrf():
 def _parse_dt(value: str) -> datetime | None:
     if not value:
         return None
-    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+    try:
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
         try:
             return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
@@ -248,6 +255,7 @@ def consent_edit(record_id: int):
             consent_date=_parse_dt(request.form.get("consent_date", "")),
             expiration_date=_parse_dt(request.form.get("expiration_date", "")),
             notes=request.form.get("notes", ""),
+            user_identifier=request.form.get("user_identifier", ""),
         )
         flash(f"Consent record #{record_id} updated successfully.", "success")
         return redirect(url_for("main.consents"))
@@ -312,6 +320,7 @@ def reports():
         start_date=start_raw,
         end_date=end_raw,
         purpose_labels=PURPOSE_LABELS,
+        scope_labels=SCOPE_LABELS,
     )
 
 

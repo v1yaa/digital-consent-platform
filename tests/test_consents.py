@@ -283,3 +283,119 @@ def test_no_expiry_stays_granted():
         notes=None,
     )
     assert record.effective_status == "granted"
+
+
+def test_filter_by_status_active_excludes_expired_consents(client):
+    """Active/granted status filter must not show expired consents."""
+    past = datetime.now(timezone.utc) - timedelta(days=2)
+    services.create_consent(
+        user_identifier="filter_active_valid@test.com",
+        purpose="analytics",
+        scope="read_activity",
+        status="granted",
+        consent_date=datetime.now(timezone.utc) - timedelta(days=10),
+        expiration_date=None,
+        notes=None,
+    )
+    services.create_consent(
+        user_identifier="filter_active_expired@test.com",
+        purpose="analytics",
+        scope="read_activity",
+        status="granted",
+        consent_date=datetime.now(timezone.utc) - timedelta(days=10),
+        expiration_date=past,
+        notes=None,
+    )
+    resp = client.get("/consents?status=granted")
+    assert resp.status_code == 200
+    assert b"filter_active_valid@test.com" in resp.data
+    assert b"filter_active_expired@test.com" not in resp.data
+
+
+def test_filter_by_status_expired_includes_explicit_and_computed(client):
+    """Expired filter returns both explicitly marked expired and dynamically expired consents."""
+    past = datetime.now(timezone.utc) - timedelta(days=2)
+    services.create_consent(
+        user_identifier="computed_expired@test.com",
+        purpose="analytics",
+        scope="read_activity",
+        status="granted",
+        consent_date=datetime.now(timezone.utc) - timedelta(days=10),
+        expiration_date=past,
+        notes=None,
+    )
+    services.create_consent(
+        user_identifier="explicit_expired@test.com",
+        purpose="analytics",
+        scope="read_activity",
+        status="expired",
+        consent_date=datetime.now(timezone.utc) - timedelta(days=10),
+        expiration_date=None,
+        notes=None,
+    )
+    resp = client.get("/consents?status=expired")
+    assert resp.status_code == 200
+    assert b"computed_expired@test.com" in resp.data
+    assert b"explicit_expired@test.com" in resp.data
+
+
+def test_update_consent_persists_user_identifier(client):
+    """Editing consent with a corrected user identifier updates the record."""
+    record = services.create_consent(
+        user_identifier="typo_user@test.com",
+        purpose="marketing",
+        scope="email_contact",
+        status="granted",
+        consent_date=datetime.now(timezone.utc),
+        expiration_date=None,
+        notes=None,
+    )
+    resp = client.post(
+        f"/consents/{record.id}/edit",
+        data={
+            "user_identifier": "fixed_user@test.com",
+            "purpose": "marketing",
+            "scope": "email_contact",
+            "status": "granted",
+            "consent_date": "2026-01-01T10:00",
+            "expiration_date": "",
+            "notes": "corrected typo",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    updated = services.get_consent(record.id)
+    assert updated.user_identifier == "fixed_user@test.com"
+    assert updated.notes == "corrected typo"
+
+
+def test_update_consent_status_to_revoked_sets_revocation_date(client):
+    """Editing status to revoked in form automatically sets revocation_date."""
+    record = services.create_consent(
+        user_identifier="edit_to_revoke@test.com",
+        purpose="analytics",
+        scope="read_activity",
+        status="granted",
+        consent_date=datetime.now(timezone.utc),
+        expiration_date=None,
+        notes=None,
+    )
+    assert record.revocation_date is None
+    resp = client.post(
+        f"/consents/{record.id}/edit",
+        data={
+            "user_identifier": "edit_to_revoke@test.com",
+            "purpose": "analytics",
+            "scope": "read_activity",
+            "status": "revoked",
+            "consent_date": "2026-01-01T10:00",
+            "expiration_date": "",
+            "notes": "manually marked revoked in edit",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    updated = services.get_consent(record.id)
+    assert updated.status == "revoked"
+    assert updated.revocation_date is not None
+

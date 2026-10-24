@@ -195,25 +195,52 @@ def update_consent_db(
     consent_date: Optional[datetime],
     expiration_date: Optional[datetime],
     notes: Optional[str],
+    user_identifier: Optional[str] = None,
 ) -> ConsentRecord:
     now = _now_str()
     with get_db() as conn:
-        conn.execute(
-            """UPDATE consent_records
-               SET purpose=?, scope=?, status=?, consent_date=?,
-                   expiration_date=?, notes=?, updated_at=?
-               WHERE id=?""",
-            (
-                purpose,
-                scope,
-                status,
-                _dt_str(consent_date) or now,
-                _dt_str(expiration_date),
-                notes.strip() if notes else None,
-                now,
-                record_id,
-            ),
-        )
+        rev_val = now if status == "revoked" else None
+        if user_identifier:
+            conn.execute(
+                """UPDATE consent_records
+                   SET user_identifier=?, purpose=?, scope=?, status=?, consent_date=?,
+                       expiration_date=?, revocation_date=CASE WHEN ?='revoked' THEN COALESCE(revocation_date, ?) ELSE NULL END,
+                       notes=?, updated_at=?
+                   WHERE id=?""",
+                (
+                    user_identifier.strip(),
+                    purpose,
+                    scope,
+                    status,
+                    _dt_str(consent_date) or now,
+                    _dt_str(expiration_date),
+                    status,
+                    rev_val,
+                    notes.strip() if notes else None,
+                    now,
+                    record_id,
+                ),
+            )
+        else:
+            conn.execute(
+                """UPDATE consent_records
+                   SET purpose=?, scope=?, status=?, consent_date=?,
+                       expiration_date=?, revocation_date=CASE WHEN ?='revoked' THEN COALESCE(revocation_date, ?) ELSE NULL END,
+                       notes=?, updated_at=?
+                   WHERE id=?""",
+                (
+                    purpose,
+                    scope,
+                    status,
+                    _dt_str(consent_date) or now,
+                    _dt_str(expiration_date),
+                    status,
+                    rev_val,
+                    notes.strip() if notes else None,
+                    now,
+                    record_id,
+                ),
+            )
         conn.execute(
             "INSERT INTO audit_logs (consent_id, event_type, description, timestamp) VALUES (?,?,?,?)",
             (
@@ -268,7 +295,10 @@ def list_consents_db(
     now = _now_str()
     if status_filter and status_filter != "all":
         if status_filter == "expired":
-            query += " AND status='granted' AND expiration_date IS NOT NULL AND expiration_date < ?"
+            query += " AND ((status='expired') OR (status='granted' AND expiration_date IS NOT NULL AND expiration_date < ?))"
+            params.append(now)
+        elif status_filter == "granted":
+            query += " AND status='granted' AND (expiration_date IS NULL OR expiration_date >= ?)"
             params.append(now)
         else:
             query += " AND status=?"
