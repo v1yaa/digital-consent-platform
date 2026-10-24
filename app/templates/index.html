@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block description %}Consent management dashboard showing active, expired, and revoked consent records{% endblock %}
+{% block page_title %}<i class="bi bi-grid-3x3-gap-fill me-2"></i>Dashboard{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('main.consent_new') }}" class="btn btn-primary btn-sm" id="btn-new-consent">
+    <i class="bi bi-plus-lg me-1"></i>New Consent
+  </a>
+{% endblock %}
+
+{% block content %}
+<!-- Summary cards -->
+<div class="stats-grid" id="stats-grid">
+  <div class="stat-card stat-total" id="stat-total">
+    <div class="stat-icon"><i class="bi bi-files"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ stats.total }}</div>
+      <div class="stat-label">Total Records</div>
+    </div>
+  </div>
+  <div class="stat-card stat-active" id="stat-active">
+    <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ stats.active }}</div>
+      <div class="stat-label">Active Consents</div>
+    </div>
+  </div>
+  <div class="stat-card stat-expired" id="stat-expired">
+    <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ stats.expired }}</div>
+      <div class="stat-label">Expired</div>
+    </div>
+  </div>
+  <div class="stat-card stat-revoked" id="stat-revoked">
+    <div class="stat-icon"><i class="bi bi-shield-x"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ stats.revoked }}</div>
+      <div class="stat-label">Revoked</div>
+    </div>
+  </div>
+  <div class="stat-card stat-denied" id="stat-denied">
+    <div class="stat-icon"><i class="bi bi-ban"></i></div>
+    <div class="stat-body">
+      <div class="stat-value">{{ stats.denied }}</div>
+      <div class="stat-label">Denied</div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts + Quick Actions row -->
+<div class="dashboard-grid">
+  <!-- Donut chart -->
+  <div class="card-panel" id="panel-chart">
+    <div class="panel-header">
+      <h2 class="panel-title"><i class="bi bi-pie-chart-fill me-2"></i>Consent Status Breakdown</h2>
+    </div>
+    <div class="chart-wrapper">
+      {% if stats.total == 0 %}
+        <div class="empty-state">
+          <i class="bi bi-pie-chart"></i>
+          <p>No consent records yet. <a href="{{ url_for('main.consent_new') }}">Add one now</a>.</p>
+        </div>
+      {% else %}
+        <canvas id="statusChart" aria-label="Consent status donut chart" role="img"></canvas>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Purpose breakdown -->
+  <div class="card-panel" id="panel-purpose">
+    <div class="panel-header">
+      <h2 class="panel-title"><i class="bi bi-bar-chart-fill me-2"></i>Records by Purpose</h2>
+    </div>
+    <div class="chart-wrapper">
+      {% if stats.total == 0 %}
+        <div class="empty-state">
+          <i class="bi bi-bar-chart"></i>
+          <p>No data yet.</p>
+        </div>
+      {% else %}
+        <canvas id="purposeChart" aria-label="Consent purpose bar chart" role="img"></canvas>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="card-panel" id="panel-actions">
+    <div class="panel-header">
+      <h2 class="panel-title"><i class="bi bi-lightning-fill me-2"></i>Quick Actions</h2>
+    </div>
+    <div class="quick-actions">
+      <a href="{{ url_for('main.consent_new') }}" class="quick-action-btn" id="qa-new">
+        <i class="bi bi-plus-circle-fill"></i>
+        <span>Record Consent</span>
+      </a>
+      <a href="{{ url_for('main.consents') }}?status=granted" class="quick-action-btn" id="qa-active">
+        <i class="bi bi-shield-check"></i>
+        <span>View Active</span>
+      </a>
+      <a href="{{ url_for('main.consents') }}?status=revoked" class="quick-action-btn" id="qa-revoked">
+        <i class="bi bi-shield-x"></i>
+        <span>View Revoked</span>
+      </a>
+      <a href="{{ url_for('main.reports') }}" class="quick-action-btn" id="qa-reports">
+        <i class="bi bi-file-earmark-bar-graph-fill"></i>
+        <span>Generate Report</span>
+      </a>
+      <a href="{{ url_for('main.audit_logs') }}" class="quick-action-btn" id="qa-audit">
+        <i class="bi bi-journal-text"></i>
+        <span>Audit Trail</span>
+      </a>
+      <a href="{{ url_for('main.reports_export') }}" class="quick-action-btn" id="qa-export">
+        <i class="bi bi-download"></i>
+        <span>Export CSV</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Recent audit events -->
+<div class="card-panel" id="panel-recent-audit">
+  <div class="panel-header">
+    <h2 class="panel-title"><i class="bi bi-activity me-2"></i>Recent Audit Events</h2>
+    <a href="{{ url_for('main.audit_logs') }}" class="panel-link">View all <i class="bi bi-arrow-right"></i></a>
+  </div>
+  {% if stats.recent_logs %}
+    <div class="table-responsive">
+      <table class="data-table" id="recent-audit-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Event</th>
+            <th>Consent ID</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in stats.recent_logs %}
+          <tr>
+            <td class="mono text-nowrap">{{ log.timestamp.strftime('%Y-%m-%d %H:%M') if log.timestamp else '—' }}</td>
+            <td><span class="badge badge-event badge-{{ log.event_type }}">{{ log.event_type.replace('_', ' ').title() }}</span></td>
+            <td>
+              {% if log.consent_id %}
+                <a href="{{ url_for('main.consent_edit', record_id=log.consent_id) }}">#{{ log.consent_id }}</a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-muted small">{{ log.description }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <i class="bi bi-journal"></i>
+      <p>No audit events yet. Actions will appear here automatically.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const statusData = {
+    labels: ['Active', 'Expired', 'Revoked', 'Denied'],
+    values: [{{ stats.active }}, {{ stats.expired }}, {{ stats.revoked }}, {{ stats.denied }}],
+    colors: ['#22c55e', '#f59e0b', '#ef4444', '#6b7280'],
+  };
+
+  const purposeData = {
+    labels: [{% for k, v in stats.purpose_breakdown.items() %}'{{ purpose_labels.get(k, k) }}',{% endfor %}],
+    values: [{% for k, v in stats.purpose_breakdown.items() %}{{ v }},{% endfor %}],
+  };
+
+  initDashboardCharts(statusData, purposeData);
+</script>
+{% endblock %}
