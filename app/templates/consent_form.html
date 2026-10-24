@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} Consent{% endblock %}
+{% block description %}{{ action }} a consent record for data processing purposes{% endblock %}
+{% block page_title %}
+  <i class="bi bi-{{ 'plus-circle-fill' if action == 'Create' else 'pencil-fill' }} me-2"></i>
+  {{ action }} Consent Record
+{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('main.consents') }}" class="btn btn-outline-secondary btn-sm" id="btn-back-consents">
+    <i class="bi bi-arrow-left me-1"></i>Back to Consents
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="form-container" id="consent-form-container">
+  <div class="card-panel" id="consent-form-panel">
+    <div class="panel-header">
+      <h2 class="panel-title">
+        {% if action == 'Update' and record %}
+          Editing Consent #{{ record.id }} &mdash; <span class="text-muted fs-6 fw-normal">{{ record.user_identifier }}</span>
+        {% else %}
+          New Consent Record
+        {% endif %}
+      </h2>
+    </div>
+
+    <form method="post" novalidate id="consent-form"
+          action="{{ url_for('main.consent_edit', record_id=record.id) if action == 'Update' and record else url_for('main.consent_new') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+      <div class="form-grid">
+
+        <!-- User Identifier -->
+        <div class="form-group form-group--full" id="fg-user">
+          <label for="user_identifier" class="form-label required-label">User Identifier</label>
+          <input type="text" id="user_identifier" name="user_identifier" class="form-control"
+                 placeholder="e.g., alice@example.com or user-uuid-1234"
+                 value="{{ form.get('user_identifier', record.user_identifier if record else '') }}"
+                 maxlength="255" required />
+          <div class="form-hint">An email address, UUID, or internal user ID that identifies the data subject.</div>
+        </div>
+
+        <!-- Purpose -->
+        <div class="form-group" id="fg-purpose">
+          <label for="purpose" class="form-label required-label">Data-Processing Purpose</label>
+          <select id="purpose" name="purpose" class="form-select" required>
+            <option value="" disabled {% if not form.get('purpose') and not (record and record.purpose) %}selected{% endif %}>Select a purpose…</option>
+            {% for key, label in purpose_labels.items() %}
+            <option value="{{ key }}"
+              {% if form.get('purpose') == key or (record and record.purpose == key) %}selected{% endif %}>
+              {{ label }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-hint">The specific activity for which the data subject's consent is being recorded.</div>
+        </div>
+
+        <!-- Scope -->
+        <div class="form-group" id="fg-scope">
+          <label for="scope" class="form-label required-label">Permission Scope</label>
+          <select id="scope" name="scope" class="form-select" required>
+            <option value="" disabled {% if not form.get('scope') and not (record and record.scope) %}selected{% endif %}>Select a scope…</option>
+            {% for key, label in scope_labels.items() %}
+            <option value="{{ key }}"
+              {% if form.get('scope') == key or (record and record.scope == key) %}selected{% endif %}>
+              {{ label }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-hint">The specific type of data or access the purpose covers.</div>
+        </div>
+
+        <!-- Status -->
+        <div class="form-group" id="fg-status">
+          <label for="status" class="form-label required-label">Consent Status</label>
+          <select id="status" name="status" class="form-select" required>
+            {% set cur_status = form.get('status', record.status if record else 'granted') %}
+            <option value="granted" {% if cur_status == 'granted' %}selected{% endif %}>Granted</option>
+            <option value="denied" {% if cur_status == 'denied' %}selected{% endif %}>Denied</option>
+            <option value="revoked" {% if cur_status == 'revoked' %}selected{% endif %}>Revoked</option>
+            <option value="expired" {% if cur_status == 'expired' %}selected{% endif %}>Expired</option>
+          </select>
+        </div>
+
+        <!-- Consent Date -->
+        <div class="form-group" id="fg-consent-date">
+          <label for="consent_date" class="form-label required-label">Consent Date &amp; Time (UTC)</label>
+          <input type="datetime-local" id="consent_date" name="consent_date" class="form-control"
+                 value="{{ form.get('consent_date', record.consent_date.strftime('%Y-%m-%dT%H:%M') if record and record.consent_date else '') }}"
+                 required />
+        </div>
+
+        <!-- Expiration Date -->
+        <div class="form-group" id="fg-expiry">
+          <label for="expiration_date" class="form-label">Expiration Date &amp; Time (UTC) <span class="optional-label">optional</span></label>
+          <input type="datetime-local" id="expiration_date" name="expiration_date" class="form-control"
+                 value="{{ form.get('expiration_date', record.expiration_date.strftime('%Y-%m-%dT%H:%M') if record and record.expiration_date else '') }}" />
+          <div class="form-hint">If left blank, the consent does not automatically expire.</div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group form-group--full" id="fg-notes">
+          <label for="notes" class="form-label">Notes <span class="optional-label">optional</span></label>
+          <textarea id="notes" name="notes" class="form-control" rows="3"
+                    placeholder="Additional context about this consent decision…">{{ form.get('notes', record.notes if record else '') }}</textarea>
+        </div>
+
+      </div><!-- /.form-grid -->
+
+      <div class="form-actions" id="form-actions">
+        <button type="submit" class="btn btn-primary" id="btn-submit-consent">
+          <i class="bi bi-{{ 'plus-circle' if action == 'Create' else 'save' }} me-2"></i>
+          {{ action }} Consent
+        </button>
+        <a href="{{ url_for('main.consents') }}" class="btn btn-ghost" id="btn-cancel-consent">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  {% if record %}
+  <!-- Metadata card for existing records -->
+  <div class="card-panel card-panel--meta" id="record-meta-panel">
+    <div class="panel-header">
+      <h2 class="panel-title"><i class="bi bi-info-circle me-2"></i>Record Metadata</h2>
+    </div>
+    <dl class="meta-list">
+      <dt>Record ID</dt><dd>#{{ record.id }}</dd>
+      <dt>Created At (UTC)</dt><dd class="mono">{{ record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else '—' }}</dd>
+      <dt>Last Updated (UTC)</dt><dd class="mono">{{ record.updated_at.strftime('%Y-%m-%d %H:%M:%S') if record.updated_at else '—' }}</dd>
+      {% if record.revocation_date %}
+      <dt>Revoked At (UTC)</dt><dd class="mono text-danger">{{ record.revocation_date.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+      {% endif %}
+      <dt>Effective Status</dt>
+      <dd>
+        <span class="status-badge status-{{ record.effective_status }}">{{ record.effective_status.title() }}</span>
+      </dd>
+    </dl>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
